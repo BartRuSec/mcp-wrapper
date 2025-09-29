@@ -1,0 +1,53 @@
+{
+  "name": "mcp-wrapper",
+  "version": "0.0.1",
+  "description": "MCP Wrapper for cmd line tools",
+  "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BartRuSec/mcp-wrapper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BartRuSec/mcp-wrapper/issues"
+  },
+  "homepage": "https://github.com/BartRuSec/mcp-wrapper#readme",
+  "bin": {
+    "mcp-wrapper": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs && shx chmod +x dist/cli.js",
+    "build:tsc": "tsc && shx chmod +x dist/cli.js",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "test": "vitest run src/**/*.test.ts"
+  },
+  "keywords": [
+    "cli",
+    "ai",
+    "llm",
+    "langchain"
+  ],
+  "author": "BartRuSec",
+  "license": "MPL-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.2",
+    "@types/mustache": "^4.2.6",
+    "chalk": "^5.6.0",
+    "commander": "^14.0.1",
+    "js-yaml": "^4.1.0",
+    "mustache": "^4.2.0",
+    "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.19.9",
+    "esbuild": "^0.25.9",
+    "rimraf": "^6.0.1",
+    "shx": "^0.4.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,99 @@
+# Basic tools example with default security settings
+# This example demonstrates how tools work when no explicit security section is provided.
+# The system will automatically apply 'moderate' security level with sensible defaults.
+#
+# Default security behavior:
+# - Level: moderate
+# - Default security type: safe
+# - Allow unsafe: false
+# - Audit logging: true
+# - Fail on warnings: false
+# - Reasonable command whitelist and blocked patterns
+# - Max execution timeout: 30 seconds
+# - Max input length: 5000 characters
+
+tools:
+  echo_tool:
+    name: "Echo Tool"
+    description: "Simple echo command that prints text with optional formatting"
+    input:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Message to echo"
+          # No explicit security type - defaults to 'safe' with shell escaping
+        prefix:
+          type: string
+          description: "Optional prefix for the message"
+          default: ""
+      required: [message]
+    cmd: "echo '{{prefix}}{{message}}'"
+
+  date_info:
+    name: "Date Information"
+    description: "Get current date and time information"
+    input:
+      type: object
+      properties:
+        format:
+          type: string
+          description: "Date format string (default shows standard format)"
+          default: ""
+          # Defaults to 'safe' security type
+      required: []
+    cmd:
+      win: "date /t && time /t"
+      unix: "date"
+      macos: "date"
+      default: "date"
+
+  list_files:
+    name: "List Files"
+    description: "List files in the current directory or specified path"
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path to list (defaults to current directory)"
+          default: "."
+          # No explicit security type - will be auto-detected as 'filepath' due to name
+        show_hidden:
+          type: boolean
+          description: "Show hidden files"
+          default: false
+      required: []
+    cmd:
+      win: "dir {{path}}"
+      unix: "ls -la {{path}}"
+      macos: "ls -la {{path}}"
+
+  system_info:
+    name: "System Information"
+    description: "Get basic system information"
+    input:
+      type: object
+      properties: {}
+    cmd:
+      win: "systeminfo | findstr /B /C:\"OS Name\" /C:\"OS Version\" /C:\"System Type\""
+      unix: "uname -a"
+      macos: "uname -a && sw_vers"
+      default: "uname -a"
+
+  word_count:
+    name: "Word Count"
+    description: "Count words, lines, and characters in text"
+    input:
+      type: object
+      properties:
+        text:
+          type: string
+          description: "Text to analyze"
+          # Defaults to 'safe' security type with shell escaping
+      required: [text]
+    cmd:
+      win: "echo {{text}} | find /c /v \"\""
+      unix: "echo {{text}} | wc"
+      macos: "echo {{text}} | wc"
+      default: "echo {{text}} | wc"

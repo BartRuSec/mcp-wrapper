@@ -1,0 +1,22 @@
+# Simple calculator with strict security
+security:
+  level: strict
+  allowUnsafe: false
+  auditLogging: true
+  maxExecutionTimeout: 10
+  allowedCommands: [echo, bc]
+  blockedPatterns: []  # Override strict defaults for this simple calculator
+
+tools:
+  calculator:
+    name: "Mathematical Calculator"
+    description: "Performs mathematical calculations using the bc command line calculator. Supports floating point arithmetic, trigonometric functions, and complex expressions."
+    input:
+      type: object
+      properties:
+        expression:
+          type: string
+          description: "Mathematical expression to evaluate (bc syntax: +, -, *, /, ^, sqrt(), sin(), cos(), etc.)"
+          security: text  # Secure text input with shell escaping
+      required: [expression]
+    cmd: "echo 'scale=10; {{expression}}' | bc -l"

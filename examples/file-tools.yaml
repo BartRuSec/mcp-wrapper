@@ -1,0 +1,138 @@
+# File operations with moderate security
+security:
+  level: moderate
+  allowUnsafe: false
+  auditLogging: true
+  maxExecutionTimeout: 20
+  allowedCommands: [ls, dir, cat, head, mkdir, cp, copy, chmod]
+  allowedPaths: ["./", "/tmp/", "/home/", "/Users/"]
+
+tools:
+  file_info:
+    name: "File Information"
+    description: "Get detailed information about a file or directory"
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Path to file or directory"
+          security: filepath  # Secure file path with traversal protection
+      required: [path]
+    cmd:
+      win: "dir \"{{path}}\" /q"
+      unix: "ls -la \"{{path}}\""
+      macos: "ls -la \"{{path}}\""
+
+  file_content:
+    name: "Read File Content"
+    description: "Read and display file content with optional line limits"
+    input:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: "Path to the file to read"
+          security: filepath  # Secure file path validation
+        lines:
+          type: integer
+          description: "Number of lines to display (0 for all)"
+          default: 0
+          security: number  # Numeric validation
+      required: [file_path]
+    cmd:
+      win: "powershell -Command \"if ({{lines}} -eq 0) { Get-Content '{{file_path}}' } else { Get-Content '{{file_path}}' -Head {{lines}} }\""
+      unix: "if [ {{lines}} -eq 0 ]; then cat '{{file_path}}'; else head -n {{lines}} '{{file_path}}'; fi"
+      macos: "if [ {{lines}} -eq 0 ]; then cat '{{file_path}}'; else head -n {{lines}} '{{file_path}}'; fi"
+
+  create_directory:
+    name: "Create Directory"
+    description: "Create a new directory with optional parent directories"
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path to create"
+          security: filepath  # Secure directory path
+        create_parents:
+          type: boolean
+          description: "Create parent directories if they don't exist"
+          default: true
+          security: safe
+      required: [path]
+    cmd:
+      win: "mkdir \"{{path}}\""
+      unix: "mkdir -p \"{{path}}\""
+      macos: "mkdir -p \"{{path}}\""
+
+  copy_file:
+    name: "Copy File"
+    description: "Copy a file from source to destination"
+    input:
+      type: object
+      properties:
+        source:
+          type: string
+          description: "Source file path"
+          security: filepath  # Secure source path
+        destination:
+          type: string
+          description: "Destination file path"
+          security: filepath  # Secure destination path
+        overwrite:
+          type: boolean
+          description: "Overwrite destination if it exists"
+          default: false
+          security: safe
+      required: [source, destination]
+    cmd:
+      win: "copy \"{{source}}\" \"{{destination}}\""
+      unix: "cp \"{{source}}\" \"{{destination}}\""
+      macos: "cp \"{{source}}\" \"{{destination}}\""
+
+  file_permissions:
+    name: "File Permissions"
+    description: "View or modify file permissions (Unix/macOS only)"
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File or directory path"
+          security: filepath  # Secure file path
+        mode:
+          type: string
+          description: "Permission mode (e.g., 755, 644) - leave empty to view current permissions"
+          security: safe  # Basic sanitization for permission modes
+      required: [path]
+    cmd:
+      win: "echo 'File permissions not applicable on Windows'"
+      unix: "if [ -z '{{mode}}' ]; then ls -la '{{path}}'; else chmod {{mode}} '{{path}}' && ls -la '{{path}}'; fi"
+      macos: "if [ -z '{{mode}}' ]; then ls -la '{{path}}'; else chmod {{mode}} '{{path}}' && ls -la '{{path}}'; fi"
+  file_search:
+    name: "File Search Tool"
+    description: "Search for files in the filesystem using find command with various criteria"
+    input:
+      type: object
+      properties:
+        directory:
+          type: string
+          description: "Directory to search in (default: current directory)"
+          default: "."
+        name_pattern:
+          type: string
+          description: "File name pattern to match (supports wildcards)"
+        file_type:
+          type: string
+          description: "File type: 'f' for files, 'd' for directories, 'l' for links"
+          default: "f"
+        max_depth:
+          type: integer
+          description: "Maximum search depth (default: unlimited)"
+      required: [name_pattern]
+    cmd:
+      win: "forfiles /p {{directory}} /m {{name_pattern}} /c \"cmd /c echo @path\""
+      unix: "find {{directory}} -maxdepth {{max_depth}} -type {{file_type}} -name '{{name_pattern}}' 2>/dev/null"
+      macos: "find {{directory}} -maxdepth {{max_depth}} -type {{file_type}} -name '{{name_pattern}}' 2>/dev/null"
+      default: "find {{directory}} -name '{{name_pattern}}'"

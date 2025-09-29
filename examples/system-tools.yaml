@@ -1,0 +1,145 @@
+# Security configuration
+security:
+  level: moderate
+  allowUnsafe: false
+  auditLogging: true
+  maxExecutionTimeout: 30
+  allowedCommands: [echo, bc, find, ls, df, free, lscpu, uname, grep, wc, head, tail, git, cat]
+
+tools:
+  calculator:
+    name: "Mathematical Calculator"
+    description: "Performs mathematical calculations using the bc command line calculator. Supports floating point arithmetic, trigonometric functions, and complex expressions."
+    input:
+      type: object
+      properties:
+        expression:
+          type: string
+          description: "Mathematical expression to evaluate (bc syntax: +, -, *, /, ^, sqrt(), sin(), cos(), etc.)"
+          security: text  # Secure text input with shell escaping
+      required: [expression]
+    cmd: "echo 'scale=10; {{expression}}' | bc -l"
+
+  file_search:
+    name: "File Search Tool"
+    description: "Search for files in the filesystem using find command with various criteria"
+    input:
+      type: object
+      properties:
+        directory:
+          type: string
+          description: "Directory to search in (default: current directory)"
+          default: "."
+          security: filepath  # Secure file path validation
+        name_pattern:
+          type: string
+          description: "File name pattern to match (supports wildcards)"
+          security: safe  # Safe text with basic sanitization
+        file_type:
+          type: string
+          description: "File type: 'f' for files, 'd' for directories, 'l' for links"
+          default: "f"
+          security: safe
+        max_depth:
+          type: integer
+          description: "Maximum search depth (default: unlimited)"
+          security: number  # Numeric validation
+      required: [name_pattern]
+    cmd:
+      win: "forfiles /p {{directory}} /m {{name_pattern}} /c \"cmd /c echo @path\""
+      unix: "find {{directory}} -maxdepth {{max_depth}} -type {{file_type}} -name '{{name_pattern}}' 2>/dev/null"
+      macos: "find {{directory}} -maxdepth {{max_depth}} -type {{file_type}} -name '{{name_pattern}}' 2>/dev/null"
+      default: "find {{directory}} -name '{{name_pattern}}'"
+
+  system_info:
+    name: "System Information"
+    description: "Get comprehensive system information including OS, CPU, memory, and disk usage"
+    input:
+      type: object
+      properties:
+        info_type:
+          type: string
+          description: "Type of info: 'all', 'cpu', 'memory', 'disk', 'network'"
+          default: "all"
+    cmd:
+      win: "systeminfo"
+      unix: "case {{info_type}} in 'cpu') lscpu;; 'memory') free -h;; 'disk') df -h;; 'network') ip addr show;; *) echo 'System Info:' && uname -a && echo 'CPU:' && lscpu | head -5 && echo 'Memory:' && free -h && echo 'Disk:' && df -h;; esac"
+      macos: "case {{info_type}} in 'cpu') sysctl -n machdep.cpu.brand_string;; 'memory') vm_stat;; 'disk') df -h;; 'network') ifconfig;; *) echo 'System Info:' && uname -a && echo 'CPU:' && sysctl -n machdep.cpu.brand_string && echo 'Memory:' && vm_stat && echo 'Disk:' && df -h;; esac"
+
+  text_processing:
+    name: "Text Processing Tool"
+    description: "Process text files with various operations like word count, line count, search, and replace"
+    input:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: "Path to the text file to process"
+          security: filepath  # Secure file path with traversal protection
+        operation:
+          type: string
+          description: "Operation: 'wc' (word count), 'lines' (line count), 'search', 'head', 'tail'"
+          security: safe
+        pattern:
+          type: string
+          description: "Search pattern (required for 'search' operation)"
+          security: text  # Text input with shell escaping
+        lines:
+          type: integer
+          description: "Number of lines for 'head' or 'tail' operations"
+          default: 10
+          security: number
+      required: [file_path, operation]
+    cmd:
+      win: "powershell -Command \"switch ('{{operation}}') { 'wc' { (Get-Content '{{file_path}}' | Measure-Object -Word).Words } 'lines' { (Get-Content '{{file_path}}' | Measure-Object -Line).Lines } 'search' { Select-String -Path '{{file_path}}' -Pattern '{{pattern}}' } 'head' { Get-Content '{{file_path}}' -Head {{lines}} } 'tail' { Get-Content '{{file_path}}' -Tail {{lines}} } }\""
+      unix: "case {{operation}} in 'wc') wc -w '{{file_path}}';; 'lines') wc -l '{{file_path}}';; 'search') grep -n '{{pattern}}' '{{file_path}}';; 'head') head -n {{lines}} '{{file_path}}';; 'tail') tail -n {{lines}} '{{file_path}}';; esac"
+      macos: "case {{operation}} in 'wc') wc -w '{{file_path}}';; 'lines') wc -l '{{file_path}}';; 'search') grep -n '{{pattern}}' '{{file_path}}';; 'head') head -n {{lines}} '{{file_path}}';; 'tail') tail -n {{lines}} '{{file_path}}';; esac"
+
+  git_status:
+    name: "Git Repository Status"
+    description: "Get Git repository information including status, branch, and recent commits"
+    input:
+      type: object
+      properties:
+        repository_path:
+          type: string
+          description: "Path to git repository (default: current directory)"
+          default: "."
+          security: filepath  # Secure path validation
+        operation:
+          type: string
+          description: "Git operation: 'status', 'branch', 'log', 'diff'"
+          default: "status"
+          security: safe
+        limit:
+          type: integer
+          description: "Limit for log entries (default: 5)"
+          default: 5
+          security: number
+    cmd: "cd {{repository_path}} && case {{operation}} in 'status') git status --porcelain;; 'branch') git branch -v;; 'log') git log --oneline -{{limit}};; 'diff') git diff --stat;; esac"
+
+  directory_list:
+    name: "Directory Listing"
+    description: "List files and directories with detailed information"
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path to list (default: current directory)"
+          default: "."
+          security: filepath  # Secure directory path
+        show_hidden:
+          type: boolean
+          description: "Show hidden files and directories"
+          default: false
+          security: safe
+        sort_by:
+          type: string
+          description: "Sort by: 'name', 'size', 'date'"
+          default: "name"
+          security: safe
+    cmd:
+      win: "dir {{path}} /a"
+      unix: "ls -la {{path}}"
+      macos: "ls -la {{path}}"
