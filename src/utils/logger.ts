@@ -17,7 +17,7 @@ export const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.Console({
-      stderrLevels: ['error', 'warn']
+      stderrLevels: ['error', 'warn', 'info', 'debug']
     })
   ]
 });

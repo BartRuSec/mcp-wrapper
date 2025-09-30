@@ -24,6 +24,13 @@ export const loadConfig = (configPath: string, options: LoadConfigOptions = {}):
     const configContent = readFileSync(configPath, 'utf8');
     const parsedConfig = yaml.load(configContent) as MCPConfig;
 
+    // Normalize tool-level string cmd to cmd.default for consistency
+    Object.values(parsedConfig.tools || {}).forEach(tool => {
+      if (tool.cmd && typeof tool.cmd === 'string') {
+        tool.cmd = { default: tool.cmd };
+      }
+    });
+
     if (validateSchema) {
       validateConfig(parsedConfig);
     }
