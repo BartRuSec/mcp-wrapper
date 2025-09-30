@@ -1,6 +1,6 @@
 {
   "name": "mcp-wrapper",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MCP Wrapper for cmd line tools",
   "main": "dist/index.js",
   "repository": {
@@ -27,7 +27,10 @@
     "cli",
     "ai",
     "llm",
-    "langchain"
+    "mcp",
+    "tools",
+    "cli-tool",
+    "command-line"
   ],
   "author": "BartRuSec",
   "license": "MPL-2.0",

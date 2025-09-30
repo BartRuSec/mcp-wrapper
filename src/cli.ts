@@ -32,7 +32,7 @@ program
   .option('--timeout <seconds>', 'Command execution timeout in seconds', '30')
   .option('--name <name>', 'Server name')
   .option('--version-server <version>', 'Server version')
-  .option('--log-level <level>', 'Log level (error|warn|info|debug)', 'info')
+  .option('--log-level <level>', 'Log level (error|warn|info|debug)', 'warn')
   .action(async (options) => {
     try {
       // Set log level

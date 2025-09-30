@@ -46,11 +46,22 @@ export class MCPWrapperServer {
 
       logger.info(`Executing tool: ${name}`);
 
-      if (!this.config.tools[name]) {
-        throw new Error(`Tool '${name}' not found`);
+      // Find tool by name (either config key or display name)
+      let definition = this.config.tools[name];
+
+      if (!definition) {
+        // Look for tool by display name
+        const foundEntry = Object.entries(this.config.tools).find(([, tool]) =>
+          tool.name === name
+        );
+        if (foundEntry) {
+          definition = foundEntry[1];
+        }
       }
 
-      const definition = this.config.tools[name];
+      if (!definition) {
+        throw new Error(`Tool '${name}' not found`);
+      }
       const executor = createToolExecutor(definition);
       const result = await executor(args || {});
 
