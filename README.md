@@ -278,60 +278,13 @@ await server.start();
 
 ## Security
 
-> **⚠️ SECURITY DISCLAIMER**
->
-> **This tool is under active development and the security system, while comprehensive, may not be perfect.** When creating MCP tools that execute command line operations, users should exercise extreme caution and thoroughly test their configurations in safe environments before production use.
->
-> **Key Security Considerations:**
-> - Always test your configurations with various inputs, including potentially malicious ones
-> - Start with strict security level and only relax restrictions when necessary
-> - Regularly review and audit your tool configurations
-> - Monitor execution logs for suspicious activity
-> - Consider running in sandboxed or containerized environments for additional protection
-> - Be especially careful when using `unsafe` security type or `permissive` mode
->
-> **The maintainers are not responsible for any security incidents or damage caused by improper configuration or use of this tool.**
+This tool executes shell commands and carries inherent security risks. Users are responsible for testing configurations and implementing appropriate security measures.
 
-MCP Wrapper includes comprehensive security features to protect against command injection and other vulnerabilities:
-
-### Security Levels
-- **Strict**: Maximum security for production environments
-- **Moderate**: Balanced security for development (default)
-- **Permissive**: Maximum functionality for specialized use cases
-
-### Security Features
-- **Input Sanitization**: Multi-layer sanitization with configurable security types
-- **Command Validation**: Template syntax and command whitelist validation
-- **Pattern Blocking**: Configurable blocking of dangerous command patterns
-- **Path Restrictions**: File system access controls
-- **Timeout Protection**: Configurable execution timeouts
-- **Audit Logging**: Security event logging for monitoring
-
-### Basic Security Configuration
-
-```yaml
-security:
-  level: moderate              # Security level: strict, moderate, permissive
-  allowUnsafe: false          # Enable unsafe security type
-  auditLogging: true          # Log security events
-  maxExecutionTimeout: 30     # Command timeout in seconds
-  failOnWarnings: false       # Treat warnings as errors
-
-tools:
-  safe_tool:
-    description: "Example with security types"
-    input:
-      type: object
-      properties:
-        file_path:
-          type: string
-          security: filepath    # File path sanitization
-        message:
-          type: string
-          security: safe        # General sanitization (default)
-```
-
-**📖 For detailed security documentation, see [docs/security.md](docs/security.md)**
+**📖 See [docs/security.md](docs/security.md) for complete security configuration guide, including:**
+- Security levels (strict, moderate, permissive)
+- Security types for input sanitization
+- Configuration options and examples
+- Best practices
 
 ## Troubleshooting
 

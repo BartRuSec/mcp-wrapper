@@ -1,144 +1,94 @@
 # Security Guide
 
-> **⚠️ IMPORTANT SECURITY DISCLAIMER**
+> **⚠️ SECURITY DISCLAIMER**
 >
-> **This tool is under active development and the security system, while comprehensive, should not be considered foolproof.** Users must exercise extreme caution when creating MCP tools that execute command line operations and should thoroughly test all configurations in safe environments.
+> This tool executes shell commands based on configuration and user input. Command execution carries inherent security risks. Users are responsible for:
+> - Testing configurations thoroughly before deployment
+> - Understanding security implications of their commands
+> - Implementing appropriate additional security measures (sandboxing, containers, network isolation, etc.)
+> - Regular security reviews and monitoring
 >
-> **Critical Security Warnings:**
-> - The security system may have undiscovered vulnerabilities
-> - No security system can protect against all possible attack vectors
-> - Command line execution inherently carries security risks
-> - User input sanitization may not catch all malicious patterns
-> - System commands can have platform-specific security implications
->
-> **Users are responsible for:**
-> - Thoroughly testing their configurations with various inputs
-> - Understanding the security implications of their tool configurations
-> - Implementing additional security measures as needed (sandboxing, containers, etc.)
-> - Regular security reviews and updates
-> - Monitoring for suspicious activity
->
-> **Use this tool at your own risk. The maintainers are not responsible for any security incidents, data loss, or damage caused by use of this software.**
+> The maintainers are not responsible for security incidents, data loss, or damage caused by use of this software.
 
-MCP Wrapper includes a comprehensive security system designed to protect against command injection, malicious input, and other security vulnerabilities while maintaining usability for legitimate use cases.
+## Security Model
 
-## Table of Contents
+MCP Wrapper uses a simple, transparent security model:
 
-- [Overview](#overview)
-- [Security Levels](#security-levels)
-- [Security Types](#security-types)
-- [Configuration](#configuration)
-- [Default Security Behavior](#default-security-behavior)
-- [Advanced Security Features](#advanced-security-features)
-- [Security Examples](#security-examples)
-- [Best Practices](#best-practices)
-- [Security Validation](#security-validation)
+### Trust Model
 
-## Overview
+- **Config files are trusted**: Commands in your YAML config are treated as application code and not validated
+- **User inputs are untrusted**: All runtime inputs are shell-escaped before template rendering
+- **Shell escaping via Mustache**: The Mustache escaper is customized to perform shell quoting (not HTML escaping)
+- **Optional filepath sanitization**: Properties marked `security: filepath` get path traversal protection
 
-The security system operates on multiple layers:
+### How It Works
 
-1. **Input Validation**: JSON schema validation handled by MCP SDK
-2. **Security Sanitization**: Command injection prevention and input sanitization
-3. **Policy Enforcement**: Configurable security policies for different environments
-4. **Command Validation**: Template validation and execution safety checks
-5. **Audit Logging**: Security event logging for monitoring and compliance
+1. **Configuration time**: Validates YAML syntax, template syntax, and input schemas
+2. **Runtime**:
+   - Pre-sanitizes any `security: filepath` properties (removes `..`, validates against `allowedPaths`)
+   - Shell-escapes all `{{variable}}` substitutions using the configured escape mode
+   - Renders the template with escaped values
+   - Executes with timeout limits
+
+**No command validation**: There's no pattern blocking, no allowlists, no command analysis. Security comes from properly escaping user inputs.
 
 ## Security Levels
 
-MCP Wrapper provides three predefined security levels that balance security and usability:
+Three predefined levels control timeouts, limits, and default escape mode:
 
-### Strict Security Level
+| Level | Default Escape | Timeout | Max Input | Allowed Paths | Audit Log | Fail on Warnings |
+|-------|----------------|---------|-----------|---------------|-----------|------------------|
+| **strict** | `remove` | 10s | 1000 chars | `./` only | ✅ | ✅ |
+| **moderate** | `quote` | 30s | 5000 chars | `./`, temp, home (OS-aware) | ✅ | ❌ |
+| **permissive** | `quote` | 60s | 10000 chars | All paths | ❌ | ❌ |
 
-**Use Case**: Production environments, public-facing tools, high-security requirements
+**Default**: If you don't specify a security level, `moderate` is used.
 
-**Configuration**:
-- **Default Security Type**: `safe`
-- **Allow Unsafe**: `false`
-- **Allowed Commands**: Limited whitelist (echo, cat, ls, pwd, whoami, date, bc, grep, awk, sed, sort, uniq, wc, head, tail)
-- **Blocked Patterns**: Comprehensive list of dangerous patterns
-- **Max Execution Timeout**: 10 seconds
-- **Max Input Length**: 1000 characters
-- **Audit Logging**: `true`
-- **Fail on Warnings**: `true` (warnings are treated as errors)
+## Escape Modes
 
-**Blocked Patterns**:
-```
-\\|, &&, ||, ;, `, $(, ${, rm , del , format, mkfs, dd , chmod, chown, sudo, su , passwd
-```
+All `{{variable}}` substitutions are shell-escaped. You control *how* with `escapeMode`:
 
-### Moderate Security Level (Default)
+### Quote Mode (default for moderate/permissive)
 
-**Use Case**: Development environments, trusted internal tools, balanced security
-
-**Configuration**:
-- **Default Security Type**: `safe`
-- **Allow Unsafe**: `false`
-- **Allowed Commands**: Extended whitelist including development tools (git, curl, wget, ping, nslookup)
-- **Blocked Patterns**: Focused on obviously dangerous operations
-- **Max Execution Timeout**: 30 seconds
-- **Max Input Length**: 5000 characters
-- **Audit Logging**: `true`
-- **Fail on Warnings**: `false` (warnings are logged but don't block execution)
-
-**Blocked Patterns**:
-```
-rm -rf, del /s, format, mkfs, dd if=, sudo rm, su -, passwd
-```
-
-### Permissive Security Level
-
-**Use Case**: Development environments, specialized tools, maximum functionality
-
-**Configuration**:
-- **Default Security Type**: `safe`
-- **Allow Unsafe**: `true`
-- **Allowed Commands**: All commands allowed (empty whitelist)
-- **Blocked Patterns**: Only extremely dangerous operations
-- **Max Execution Timeout**: 60 seconds
-- **Max Input Length**: 10000 characters
-- **Audit Logging**: `false`
-- **Fail on Warnings**: `false`
-
-**Blocked Patterns**:
-```
-rm -rf /, del /s /q C:\\, format C:, mkfs, dd if=/dev/zero
-```
-
-## Security Types
-
-Security types define how input parameters are sanitized before being used in shell commands:
-
-### `safe` (Default)
-
-**Purpose**: General-purpose safe input sanitization
-
-**Behavior**:
-- Removes dangerous shell characters: `;`, `&`, `|`, `` ` ``, `$`, `(`, `)`, `{`, `}`, `[`, `]`
-- Converts newlines to spaces
-- Applies platform-specific shell quoting
-- HTML escapes output for additional safety
-
-**Example**:
 ```yaml
-properties:
-  message:
-    type: string
-    security: safe  # Optional - this is the default
+tools:
+  my_tool:
+    escapeMode: quote  # Default for moderate/permissive levels
 ```
 
-### `filepath`
+- Wraps input in shell quotes (single quotes on Unix, double on Windows)
+- Preserves all characters, making them literal
+- Example: `hello & goodbye` → `'hello & goodbye'`
+- The `&` becomes literal text, not a shell operator
 
-**Purpose**: File path validation and sanitization
+### Remove Mode (default for strict)
 
-**Behavior**:
-- Removes dangerous characters
-- Normalizes paths to prevent traversal attacks
-- Blocks absolute paths (forces relative paths)
-- Blocks `..` path traversal attempts
-- Applies shell quoting
+```yaml
+tools:
+  my_tool:
+    escapeMode: remove  # Default for strict level
+```
 
-**Example**:
+- Strips dangerous characters: `[;&|`$(){}[\]]` and newlines
+- Then applies shell quoting
+- Example: `hello & goodbye` → `'hello  goodbye'`
+- The `&` is removed entirely
+
+### Raw/Unescaped (not recommended)
+
+```yaml
+cmd: "echo {{safe}} && {{{unsafe}}}"
+```
+
+- `{{variable}}` - Shell-escaped (safe)
+- `{{{variable}}}` - Raw, no escaping (**dangerous**, can execute arbitrary commands)
+
+**Avoid `{{{}}}`** unless absolutely necessary.
+
+## File Path Security
+
+For properties accepting file paths, use `security: filepath`:
+
 ```yaml
 properties:
   file_path:
@@ -146,417 +96,208 @@ properties:
     security: filepath
 ```
 
-**Input**: `../../../etc/passwd`
-**Output**: `'passwd'` (path traversal blocked, basename only)
-
-### `command`
-
-**Purpose**: Command name validation
-
-**Behavior**:
-- Validates against allowed command whitelist
-- Blocks dangerous commands
-- Sanitizes command arguments
-- Applies shell quoting to arguments
-
-**Example**:
-```yaml
-properties:
-  command:
-    type: string
-    security: command
-```
-
-### `text`
-
-**Purpose**: Text content that may contain special characters
-
-**Behavior**:
-- Removes dangerous shell operators: `;`, `&`, `|`, `` ` ``
-- Removes command substitution: `$(`, `${`
-- Preserves other characters for text content
+**What it does:**
+- Removes dangerous shell characters
+- Normalizes the path
+- Blocks `..` path traversal (reduces to basename only)
+- Validates against `allowedPaths` (reduces to basename if not allowed)
 - Applies shell quoting
 
-**Example**:
-```yaml
-properties:
-  search_text:
-    type: string
-    security: text
-```
-
-### `unsafe`
-
-**Purpose**: No sanitization (use with extreme caution)
-
-**Behavior**:
-- No sanitization applied
-- Raw input passed through
-- Only available when `allowUnsafe: true`
-- Generates security warnings
-
-**Example**:
-```yaml
-security:
-  level: permissive
-  allowUnsafe: true
-
-tools:
-  advanced_tool:
-    input:
-      properties:
-        raw_command:
-          type: string
-          security: unsafe  # Only with allowUnsafe: true
-```
+**Examples:**
+- Input: `../../../etc/passwd` → Output: `'passwd'` (traversal blocked)
+- Input: `/etc/passwd` (strict policy) → Output: `'passwd'` (not in allowed paths)
 
 ## Configuration
 
-### Basic Security Configuration
+### Basic Configuration
 
 ```yaml
 security:
-  level: moderate           # strict, moderate, or permissive
-  allowUnsafe: false        # Enable unsafe security type
-  auditLogging: true        # Log security events
-  maxExecutionTimeout: 30   # Command timeout in seconds
-  maxInputLength: 5000      # Maximum input length
-  failOnWarnings: false     # Treat warnings as errors
+  level: moderate  # strict | moderate | permissive
 ```
 
-### Custom Security Configuration
+### Custom Configuration
 
-You can override specific settings while keeping a security level base:
+Override specific settings:
 
 ```yaml
 security:
   level: strict
-  # Override specific settings
-  allowedCommands: [echo, bc, date, ls]
-  blockedPatterns: []  # Remove all blocked patterns
-  maxExecutionTimeout: 5
-  allowedPaths: ["./scripts/", "./data/"]
+  maxExecutionTimeout: 5  # Override timeout
+  allowedPaths: ["./data/", "./scripts/"]  # Override paths
 ```
 
-### Tool-Specific Security Types
+### Tool-Level Escape Mode
 
 ```yaml
 tools:
-  file_processor:
-    description: "Process files with different security requirements"
+  production_tool:
+    description: "Tool for production"
+    escapeMode: remove  # Override security level default
     input:
-      type: object
       properties:
-        config_file:
+        message:
           type: string
-          security: filepath  # File path sanitization
-        command:
-          type: string
-          security: command   # Command validation
-        search_text:
-          type: string
-          security: text      # Text sanitization
-        safe_input:
-          type: string
-          security: safe      # General sanitization (default)
-      required: [config_file]
+    cmd: "echo {{message}}"
 ```
 
-## Default Security Behavior
+## Examples
 
-When no `security` section is provided in your configuration, MCP Wrapper applies sensible defaults:
-
-```yaml
-# Implicit defaults when security section is omitted
-security:
-  level: moderate
-  defaultSecurityType: safe
-  allowUnsafe: false
-  auditLogging: true
-  failOnWarnings: false
-  maxExecutionTimeout: 30
-  maxInputLength: 5000
-```
-
-**Auto-Detection**: Security types are automatically detected based on property names:
-- Properties containing "path", "file", or "dir" → `filepath`
-- Properties containing "command" or "cmd" → `command`
-- All other properties → `safe`
-
-**Example without explicit security**:
-```yaml
-tools:
-  file_tool:
-    description: "File operations with auto-detected security"
-    input:
-      type: object
-      properties:
-        file_path:      # Auto-detected as 'filepath' security type
-          type: string
-        message:        # Auto-detected as 'safe' security type
-          type: string
-```
-
-## Advanced Security Features
-
-### Command Whitelisting
-
-Control which commands are allowed to be executed:
+### Example 1: Calculator
 
 ```yaml
 security:
   level: strict
-  allowedCommands: [echo, cat, ls, grep, awk]
-```
-
-**Empty List Behavior**: An empty `allowedCommands` array allows all commands (permissive mode).
-
-### Pattern Blocking
-
-Block specific patterns in commands and input:
-
-```yaml
-security:
-  level: moderate
-  blockedPatterns:
-    - "rm -rf"
-    - "sudo"
-    - "\\$\\("      # Command substitution
-    - "eval"
-```
-
-### Path Restrictions
-
-Limit file system access to specific directories:
-
-```yaml
-security:
-  level: strict
-  allowedPaths:
-    - "./"          # Current directory
-    - "./data/"     # Data directory
-    - "/tmp/"       # Temporary files
-```
-
-### Input Length Limits
-
-Prevent resource exhaustion attacks:
-
-```yaml
-security:
-  maxInputLength: 1000      # Maximum characters per input
-  maxExecutionTimeout: 10   # Maximum seconds per command
-```
-
-### Audit Logging
-
-Security events are logged when audit logging is enabled:
-
-```yaml
-security:
-  auditLogging: true
-```
-
-**Logged Events**:
-- Security warnings and sanitization actions
-- Blocked commands and patterns
-- Input validation failures
-- Command execution with sanitized parameters
-
-## Security Examples
-
-### Example 1: Basic Calculator (Strict Security)
-
-```yaml
-security:
-  level: strict
-  allowedCommands: [echo, bc]
-  blockedPatterns: []  # Override strict defaults for calculator
 
 tools:
-  calculator:
-    description: "Mathematical calculator with strict security"
+  calc:
+    description: "Calculator"
+    escapeMode: quote  # Override to preserve math operators
     input:
-      type: object
       properties:
         expression:
           type: string
-          description: "Mathematical expression"
-          security: text  # Allow mathematical operators
       required: [expression]
-    cmd: "echo 'scale=10; {{expression}}' | bc -l"
+    cmd: "echo '{{expression}}' | bc -l"
 ```
 
-### Example 2: File Operations (Moderate Security)
+### Example 2: File Reader
 
 ```yaml
 security:
   level: moderate
-  allowedPaths: ["./", "./data/", "/tmp/"]
+  allowedPaths: ["./data/"]
 
 tools:
-  file_reader:
-    description: "Read file contents safely"
+  read_file:
+    description: "Read file contents"
     input:
-      type: object
       properties:
         file_path:
           type: string
-          security: filepath  # Path traversal protection
+          security: filepath
         lines:
           type: integer
-          maximum: 1000      # Limit output size
+          maximum: 1000
       required: [file_path]
     cmd: "head -n {{lines}} {{file_path}}"
 ```
 
-### Example 3: Development Tools (Permissive Security)
+### Example 3: Command Runner
 
 ```yaml
-security:
-  level: permissive
-  allowUnsafe: true
-  auditLogging: true
-
 tools:
-  git_tool:
-    description: "Git operations for development"
+  run_command:
+    description: "Run shell command"
     input:
-      type: object
       properties:
-        repository:
+        command:
           type: string
-          security: filepath
-        git_command:
-          type: string
-          security: unsafe    # Allow complex git commands
-      required: [repository, git_command]
-    cmd: "cd {{repository}} && {{git_command}}"
+      required: [command]
+    cmd: "{{{command}}}"
 ```
+
+**Note**: Using `{{{variable}}}` allows raw input - understand the security implications before using.
 
 ## Best Practices
 
-### 1. Choose Appropriate Security Level
+1. **Use `security: filepath` for file paths**
+   ```yaml
+   properties:
+     path:
+       type: string
+       security: filepath
+   ```
 
-- **Production**: Use `strict` security level
-- **Development**: Use `moderate` security level
-- **Specialized Tools**: Use `permissive` only when necessary
+2. **Avoid `{{{ }}}` (raw/unescaped)**
+   ```yaml
+   # ❌ Dangerous
+   cmd: "run {{{user_input}}}"
 
-### 2. Minimize Unsafe Usage
+   # ✅ Safe
+   cmd: "run {{user_input}}"
+   ```
 
+3. **Use JSON Schema constraints**
+   ```yaml
+   properties:
+     count:
+       type: integer
+       minimum: 1
+       maximum: 100  # Prevent abuse
+     action:
+       type: string
+       enum: [read, list, info]
+   ```
+
+4. **Test with malicious inputs**
+   ```bash
+   # Test command injection
+   echo '{"input": "test; rm -rf /"}' | mcp-wrapper --config config.yaml
+
+   # See security actions
+   mcp-wrapper --config config.yaml --log-level debug
+   ```
+
+5. **Consider additional security layers** (containers, sandboxing, network isolation)
+
+## Security Implementation Details
+
+### What's Validated at Config Load
+
+- Template syntax (Mustache)
+- YAML syntax
+- Required fields (description, cmd, input)
+- Input schemas (JSON Schema)
+- `escapeMode` values (`quote` or `remove`)
+- `security` values (`filepath` or omit)
+
+Commands in config are treated as trusted code and not validated.
+
+### What Happens at Runtime
+
+1. **JSON Schema validation** (via MCP SDK)
+2. **Filepath pre-sanitization** (if `security: filepath`)
+3. **Shell escaping** (all `{{variables}}` via Mustache custom escaper)
+4. **Template rendering** (substitution with escaped values)
+5. **Execution** (with timeout enforcement)
+
+Security comes from proper input escaping before rendering.
+
+### Error Examples
+
+**Config errors:**
 ```yaml
-# ❌ Avoid unsafe when possible
-properties:
-  command:
-    security: unsafe
-
-# ✅ Use specific security types
-properties:
-  command:
-    security: command
-```
-
-### 3. Use Explicit Security Types
-
-```yaml
-# ✅ Explicit security type
-properties:
-  file_path:
-    type: string
-    security: filepath
-
-# ⚠️ Relies on auto-detection
-properties:
-  file_path:
-    type: string
-```
-
-### 4. Validate Input Constraints
-
-```yaml
-properties:
-  lines:
-    type: integer
-    minimum: 1
-    maximum: 1000    # Prevent resource exhaustion
-  command:
-    type: string
-    enum: [status, log, diff]  # Limit to safe commands
-```
-
-### 5. Enable Audit Logging
-
-```yaml
-security:
-  auditLogging: true  # Always enable in production
-```
-
-### 6. Test Security Configuration
-
-Always test your security configuration with various inputs:
-
-```bash
-# Test with malicious input
-echo '{"expression": "2+2; rm -rf /"}' | mcp-wrapper --config calc.yaml
-
-# Enable debug logging to see security actions
-mcp-wrapper --config calc.yaml --log-level debug
-```
-
-## Security Validation
-
-### Configuration Validation
-
-MCP Wrapper validates security configuration at startup:
-
-```bash
-# Invalid security level
-security:
-  level: invalid_level  # Error: must be strict, moderate, or permissive
+# Invalid escape mode
+escapeMode: invalid  # Error: must be 'quote' or 'remove'
 
 # Invalid security type
-properties:
-  input:
-    security: invalid_type  # Error: must be safe, filepath, command, text, or unsafe
-
-# Unsafe not allowed
-security:
-  allowUnsafe: false
-properties:
-  input:
-    security: unsafe  # Error: unsafe not allowed by current policy
+security: unsafe  # Error: must be 'filepath' or omit
 ```
 
-### Runtime Validation
-
-Security validation occurs at runtime for each tool execution:
-
-1. **Input Schema Validation**: MCP SDK validates against JSON schema
-2. **Security Type Validation**: Check if security type is allowed
-3. **Input Sanitization**: Apply security type-specific sanitization
-4. **Command Validation**: Validate rendered command against policies
-5. **Pattern Blocking**: Check for blocked patterns
-6. **Execution**: Run sanitized command with timeout
-
-### Error Handling
-
-Security violations result in structured error responses:
-
+**Runtime errors:**
 ```json
 {
-  "error": "Security validation failed",
-  "details": "Command contains blocked patterns",
-  "input": "user_provided_input",
-  "violations": ["pattern_rm_-rf"]
+  "error": "Path traversal blocked",
+  "property": "file_path",
+  "value": "../../etc/passwd"
 }
 ```
 
-## Security Updates
+## Security Checklist
 
-The security system is continuously updated to address new threats:
+- [ ] Choose appropriate security level
+- [ ] Configure `auditLogging` based on your needs
+- [ ] Use `security: filepath` for all file path inputs
+- [ ] Avoid `{{{ }}}` raw substitution unless necessary
+- [ ] Set JSON Schema constraints (min/max, enum)
+- [ ] Configure `allowedPaths` for file operations if needed
+- [ ] Test with malicious inputs
+- [ ] Consider containerization/sandboxing for additional protection
+- [ ] Review logs regularly if audit logging is enabled
+- [ ] Protect config files with appropriate file permissions
 
-- **Blocked Patterns**: Updated based on security research
-- **Validation Logic**: Enhanced to catch new attack vectors
-- **Default Policies**: Adjusted based on real-world usage
+## Additional Resources
 
-For security questions or concerns, please review the codebase or contact the maintainers.
+- [Main README](../README.md) - Configuration examples and quick start
+- [Examples Directory](../examples/) - Sample configurations

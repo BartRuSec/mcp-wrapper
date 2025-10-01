@@ -8,10 +8,6 @@ export interface MCPConfig {
 
 export interface SecurityConfig {
   level?: SecurityLevel;
-  defaultSecurityType?: 'safe' | 'filepath' | 'command' | 'text' | 'unsafe';
-  allowUnsafe?: boolean;
-  allowedCommands?: string[];
-  blockedPatterns?: string[];
   allowedPaths?: string[];
   maxExecutionTimeout?: number;
   maxInputLength?: number;
@@ -31,6 +27,7 @@ export interface ToolDefinition {
   description: string;
   input: ExtendedInputSchema;
   cmd: string | PlatformCommands;
+  escapeMode?: 'quote' | 'remove';
 }
 
 export interface ExtendedInputSchema {
@@ -51,8 +48,8 @@ export interface ExtendedPropertySchema {
   minLength?: number;
   maxLength?: number;
   pattern?: string;
-  // Only add our security extension
-  security?: 'safe' | 'filepath' | 'command' | 'text' | 'unsafe';
+  // Security extension - only for filepath pre-sanitization
+  security?: 'filepath';
 }
 
 export interface PlatformCommands {

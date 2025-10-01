@@ -1,7 +1,6 @@
 import * as yaml from 'js-yaml';
 import { readFileSync, existsSync } from 'fs';
 import { MCPConfig, LoadConfigOptions, ConfigValidationError, PlatformCommands } from '../types/config.js';
-import { SecurityPolicyManager } from '../security/policies.js';
 import { validateTemplate, extractTemplateVariables } from '../templating/mustache.js';
 import { createContextLogger } from '../utils/logger.js';
 
@@ -24,7 +23,6 @@ export const loadConfig = (configPath: string, options: LoadConfigOptions = {}):
     const configContent = readFileSync(configPath, 'utf8');
     const parsedConfig = yaml.load(configContent) as MCPConfig;
 
-    // Normalize tool-level string cmd to cmd.default for consistency
     Object.values(parsedConfig.tools || {}).forEach(tool => {
       if (tool.cmd && typeof tool.cmd === 'string') {
         tool.cmd = { default: tool.cmd };
@@ -47,11 +45,9 @@ export const loadConfig = (configPath: string, options: LoadConfigOptions = {}):
 const validateConfig = (config: MCPConfig): void => {
   const errors: ConfigValidationError[] = [];
 
-  // Validate security configuration first
   if (config.security) {
     validateSecurityConfig(config.security, errors);
 
-    // If security validation failed, don't try to create policy manager
     if (errors.length > 0) {
       const errorMessage = errors
         .map(err => `${err.field}: ${err.message}`)
@@ -59,12 +55,6 @@ const validateConfig = (config: MCPConfig): void => {
       throw new Error(`Configuration validation failed:\n${errorMessage}`);
     }
   }
-
-  // Create security policy manager for validation
-  // If no security section is provided, defaults to 'moderate' security level
-  const policyManager = config.security
-    ? SecurityPolicyManager.fromConfig(config.security)
-    : new SecurityPolicyManager(); // Defaults to moderate security level
 
   if (!config.tools || Object.keys(config.tools).length === 0) {
     errors.push({ field: 'tools', message: 'At least one tool must be defined' });
@@ -83,7 +73,7 @@ const validateConfig = (config: MCPConfig): void => {
           message: 'Tool command is required'
         });
       } else {
-        validateToolCommand(tool.cmd, `tools.${toolName}.cmd`, errors, policyManager);
+        validateToolCommand(tool.cmd, `tools.${toolName}.cmd`, errors);
       }
 
       if (!tool.input) {
@@ -92,7 +82,18 @@ const validateConfig = (config: MCPConfig): void => {
           message: 'Tool input schema is required'
         });
       } else {
-        validateToolInputSchema(tool.input, `tools.${toolName}.input`, errors, policyManager);
+        validateToolInputSchema(tool.input, `tools.${toolName}.input`, errors);
+      }
+
+      if (tool.escapeMode) {
+        const validEscapeModes = ['quote', 'remove'];
+        if (!validEscapeModes.includes(tool.escapeMode)) {
+          errors.push({
+            field: `tools.${toolName}.escapeMode`,
+            message: `Escape mode must be one of: ${validEscapeModes.join(', ')}`,
+            value: tool.escapeMode
+          });
+        }
       }
     });
   }
@@ -110,8 +111,7 @@ const validateConfig = (config: MCPConfig): void => {
 const validateToolInputSchema = (
   schema: any,
   fieldPath: string,
-  errors: ConfigValidationError[],
-  policyManager: SecurityPolicyManager
+  errors: ConfigValidationError[]
 ): void => {
   if (schema.type !== 'object') {
     errors.push({
@@ -132,22 +132,12 @@ const validateToolInputSchema = (
         });
       }
 
-      // Validate security type if specified
-      if (prop.security) {
-        const validSecurityTypes = ['safe', 'filepath', 'command', 'text', 'unsafe'];
-        if (!validSecurityTypes.includes(prop.security)) {
-          errors.push({
-            field: `${fieldPath}.properties.${propName}.security`,
-            message: `Security type must be one of: ${validSecurityTypes.join(', ')}`,
-            value: prop.security
-          });
-        } else if (!policyManager.validateSecurityType(prop.security)) {
-          errors.push({
-            field: `${fieldPath}.properties.${propName}.security`,
-            message: `Security type '${prop.security}' not allowed by current security policy`,
-            value: prop.security
-          });
-        }
+      if (prop.security && prop.security !== 'filepath') {
+        errors.push({
+          field: `${fieldPath}.properties.${propName}.security`,
+          message: `Security type must be 'filepath' (or omit for default escaping)`,
+          value: prop.security
+        });
       }
     });
   }
@@ -156,15 +146,13 @@ const validateToolInputSchema = (
 const validateToolCommand = (
   cmd: string | PlatformCommands,
   fieldPath: string,
-  errors: ConfigValidationError[],
-  policyManager: SecurityPolicyManager
+  errors: ConfigValidationError[]
 ): void => {
   const commands = typeof cmd === 'string' ? [cmd] : Object.values(cmd).filter(Boolean);
 
   commands.forEach((command, index) => {
     const cmdPath = typeof cmd === 'string' ? fieldPath : `${fieldPath}.${Object.keys(cmd)[index]}`;
 
-    // Validate template syntax
     const templateErrors = validateTemplate(command);
     if (templateErrors.length > 0) {
       errors.push({
@@ -174,34 +162,10 @@ const validateToolCommand = (
       });
     }
 
-    // Check for blocked patterns
-    if (policyManager.isPatternBlocked(command)) {
-      errors.push({
-        field: cmdPath,
-        message: 'Command contains blocked patterns',
-        value: command
-      });
-    }
-
-    // Extract and validate commands if command whitelist is enabled
     const templateVars = extractTemplateVariables(command);
-    const commandPart = command.split(' ')[0];
-
-    // Check if base command is allowed (if whitelist is configured)
-    if (policyManager.getPolicy().allowedCommands.length > 0) {
-      if (!policyManager.isCommandAllowed(commandPart)) {
-        errors.push({
-          field: cmdPath,
-          message: `Command '${commandPart}' not in allowed list`,
-          value: command
-        });
-      }
-    }
-
-    logger.debug(`Validated command template with variables: ${templateVars.join(', ')}`);
+    logger.debug(`Config command template with variables: ${templateVars.join(', ')}`);
   });
 
-  // Platform-specific validation
   if (typeof cmd !== 'string') {
     const platforms = ['win', 'macos', 'unix', 'default'];
     const definedPlatforms = Object.keys(cmd).filter(key => platforms.includes(key));
