@@ -181,73 +181,11 @@ cmd: "echo {{expression}} | bc -l"
 
 ## Examples
 
-### Calculator Tool
-
-```yaml
-tools:
-  calc:
-    description: "Mathematical calculator based on bc command line"
-    input:
-      type: object
-      properties:
-        equation:
-          description: "bc compatible equation"
-          type: string
-      required: [equation]
-    cmd: "echo {{equation}} | bc -l"
-```
-
-### Cross-Platform File Search
-
-```yaml
-tools:
-  file_search:
-    name: "File Search Tool"
-    description: "Search for files with cross-platform support"
-    input:
-      type: object
-      properties:
-        directory:
-          type: string
-          description: "Directory to search in"
-          default: "."
-        pattern:
-          type: string
-          description: "File name pattern"
-      required: [pattern]
-    cmd:
-      win: "forfiles /p {{directory}} /m {{pattern}} /c \"cmd /c echo @path\""
-      unix: "find {{directory}} -name '{{pattern}}'"
-      macos: "find {{directory}} -name '{{pattern}}'"
-```
-
-### Git Repository Info
-
-```yaml
-tools:
-  git_status:
-    name: "Git Repository Status"
-    description: "Get Git repository information"
-    input:
-      type: object
-      properties:
-        repository_path:
-          type: string
-          description: "Path to git repository"
-          default: "."
-        operation:
-          type: string
-          description: "Git operation to perform"
-          enum: ["status", "branch", "log", "diff"]
-          default: "status"
-        limit:
-          type: integer
-          description: "Limit for log entries"
-          default: 5
-          minimum: 1
-          maximum: 100
-    cmd: "cd {{repository_path}} && case {{operation}} in 'status') git status --porcelain;; 'branch') git branch -v;; 'log') git log --oneline -{{limit}};; 'diff') git diff --stat;; esac"
-```
+See the **[examples/](examples/)** directory for ready-to-use configuration examples including:
+- Calculator tool
+- Cross-platform file operations
+- Git repository tools
+- And more
 
 ## Documentation
 
@@ -285,34 +223,6 @@ This tool executes shell commands and carries inherent security risks. Users are
 - Security types for input sanitization
 - Configuration options and examples
 - Best practices
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Configuration file not found**
-   ```bash
-   # Check file path
-   ls -la mcp-wrapper.yaml
-
-   # Use absolute path
-   mcp-wrapper --config /full/path/to/config.yaml
-   ```
-
-2. **Command execution fails**
-   ```bash
-   # Enable debug logging
-   mcp-wrapper --log-level debug
-
-   # Test command manually
-   echo "2+2" | bc -l
-   ```
-
-3. **Platform-specific commands not working**
-   ```bash
-   # Check platform detection
-   node -e "console.log(require('os').platform())"
-   ```
 
 ### Security Testing
 
@@ -381,4 +291,3 @@ MPL-2.0 License - see LICENSE file for details.
 - 📖 **Documentation**:
   - [Security Guide](docs/security.md) for security configuration
   - [Examples](examples/) directory for configuration samples
-- 💬 **Discussions**: Join the MCP community discussions
