@@ -6,27 +6,15 @@ import { MCPWrapperServer } from './mcp/server.js';
 import { loadConfig } from './config/loader.js';
 import { ServerOptions, DEFAULT_SERVER_OPTIONS } from './types/config.js';
 import { logger, setLogLevel } from './utils/logger.js';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { version } from '../package.json';
 
-const getVersion = (): string => {
-  try {
-    // Try to read from the installed package location
-    const packageJson = JSON.parse(
-      readFileSync(join(__dirname, '../package.json'), 'utf8')
-    );
-    return packageJson.version;
-  } catch {
-    return '1.0.0';
-  }
-};
 
 const program = new Command();
 
 program
   .name('mcp-wrapper')
   .description('MCP Wrapper - Expose shell command line tools as MCP servers')
-  .version(getVersion());
+  .version(version, '-v, --version', 'output the current version');
 
 program
   .option('-c, --config <file>', 'Configuration file path', 'mcp-wrapper.yaml')
