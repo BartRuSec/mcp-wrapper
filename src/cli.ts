@@ -11,8 +11,9 @@ import { join } from 'path';
 
 const getVersion = (): string => {
   try {
+    // Try to read from the installed package location
     const packageJson = JSON.parse(
-      readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+      readFileSync(join(__dirname, '../package.json'), 'utf8')
     );
     return packageJson.version;
   } catch {
