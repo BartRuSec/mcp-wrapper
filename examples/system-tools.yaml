@@ -1,22 +1,18 @@
-# Security configuration
+# System tools example
 security:
   level: moderate
-  allowUnsafe: false
-  auditLogging: true
-  maxExecutionTimeout: 30
-  allowedCommands: [echo, bc, find, ls, df, free, lscpu, uname, grep, wc, head, tail, git, cat]
 
 tools:
   calculator:
     name: "Mathematical Calculator"
     description: "Performs mathematical calculations using the bc command line calculator. Supports floating point arithmetic, trigonometric functions, and complex expressions."
+    escapeMode: quote
     input:
       type: object
       properties:
         expression:
           type: string
           description: "Mathematical expression to evaluate (bc syntax: +, -, *, /, ^, sqrt(), sin(), cos(), etc.)"
-          security: text  # Secure text input with shell escaping
       required: [expression]
     cmd: "echo 'scale=10; {{expression}}' | bc -l"
 
@@ -30,20 +26,17 @@ tools:
           type: string
           description: "Directory to search in (default: current directory)"
           default: "."
-          security: filepath  # Secure file path validation
+          security: filepath
         name_pattern:
           type: string
           description: "File name pattern to match (supports wildcards)"
-          security: safe  # Safe text with basic sanitization
         file_type:
           type: string
           description: "File type: 'f' for files, 'd' for directories, 'l' for links"
           default: "f"
-          security: safe
         max_depth:
           type: integer
           description: "Maximum search depth (default: unlimited)"
-          security: number  # Numeric validation
       required: [name_pattern]
     cmd:
       win: "forfiles /p {{directory}} /m {{name_pattern}} /c \"cmd /c echo @path\""
@@ -75,20 +68,17 @@ tools:
         file_path:
           type: string
           description: "Path to the text file to process"
-          security: filepath  # Secure file path with traversal protection
+          security: filepath
         operation:
           type: string
           description: "Operation: 'wc' (word count), 'lines' (line count), 'search', 'head', 'tail'"
-          security: safe
         pattern:
           type: string
           description: "Search pattern (required for 'search' operation)"
-          security: text  # Text input with shell escaping
         lines:
           type: integer
           description: "Number of lines for 'head' or 'tail' operations"
           default: 10
-          security: number
       required: [file_path, operation]
     cmd:
       win: "powershell -Command \"switch ('{{operation}}') { 'wc' { (Get-Content '{{file_path}}' | Measure-Object -Word).Words } 'lines' { (Get-Content '{{file_path}}' | Measure-Object -Line).Lines } 'search' { Select-String -Path '{{file_path}}' -Pattern '{{pattern}}' } 'head' { Get-Content '{{file_path}}' -Head {{lines}} } 'tail' { Get-Content '{{file_path}}' -Tail {{lines}} } }\""
@@ -105,17 +95,15 @@ tools:
           type: string
           description: "Path to git repository (default: current directory)"
           default: "."
-          security: filepath  # Secure path validation
+          security: filepath
         operation:
           type: string
           description: "Git operation: 'status', 'branch', 'log', 'diff'"
           default: "status"
-          security: safe
         limit:
           type: integer
           description: "Limit for log entries (default: 5)"
           default: 5
-          security: number
     cmd: "cd {{repository_path}} && case {{operation}} in 'status') git status --porcelain;; 'branch') git branch -v;; 'log') git log --oneline -{{limit}};; 'diff') git diff --stat;; esac"
 
   directory_list:
@@ -128,17 +116,15 @@ tools:
           type: string
           description: "Directory path to list (default: current directory)"
           default: "."
-          security: filepath  # Secure directory path
+          security: filepath
         show_hidden:
           type: boolean
           description: "Show hidden files and directories"
           default: false
-          security: safe
         sort_by:
           type: string
           description: "Sort by: 'name', 'size', 'date'"
           default: "name"
-          security: safe
     cmd:
       win: "dir {{path}} /a"
       unix: "ls -la {{path}}"

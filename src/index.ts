@@ -15,7 +15,12 @@ export {
   extractTemplateVariables
 } from './templating/mustache.js';
 export { logger, setLogLevel, createContextLogger } from './utils/logger.js';
-export { SecuritySanitizer } from './security/sanitizer.js';
-export { InputValidator } from './security/validator.js';
+export {
+  sanitizeFilePath,
+  shellEscapeQuote,
+  shellEscapeRemove,
+  getEscapeFunction,
+  preprocessContext
+} from './security/sanitizer.js';
 export { SecurityPolicyManager, SECURITY_POLICIES } from './security/policies.js';
 export * from './types/config.js';

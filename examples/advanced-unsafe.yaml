@@ -1,52 +1,28 @@
-# Advanced example with permissive security - USE WITH CAUTION!
-# This demonstrates the 'unsafe' security type for advanced users
-security:
-  level: permissive
-  allowUnsafe: true  # Required to use 'unsafe' security type
-  auditLogging: true  # Important for unsafe operations
-  maxExecutionTimeout: 60
-  failOnWarnings: false
-
+# Advanced example showing raw command execution (UNSAFE)
 tools:
-  raw_command:
-    name: "Raw Command Execution"
-    description: "Execute raw shell commands - DANGEROUS! Only for trusted inputs."
+  command_runner:
+    name: "Command Runner"
+    description: "Execute shell commands directly"
     input:
       type: object
       properties:
         command:
           type: string
-          description: "Raw shell command to execute"
-          security: unsafe  # NO sanitization applied - use with extreme caution!
+          description: "Shell command to execute"
       required: [command]
-    cmd: "{{command}}"
-
-  safe_echo:
-    name: "Safe Echo"
-    description: "Echo text safely with proper escaping"
-    input:
-      type: object
-      properties:
-        message:
-          type: string
-          description: "Message to echo"
-          security: text  # Safe text escaping
-      required: [message]
-    cmd: "echo {{message}}"
-
+    cmd: "{{{command}}}"
   script_runner:
     name: "Script Runner"
-    description: "Run scripts from allowed directories only"
+    description: "Run scripts with arguments"
     input:
       type: object
       properties:
         script_path:
           type: string
           description: "Path to script file"
-          security: filepath  # File path validation
+          security: filepath
         arguments:
           type: string
           description: "Script arguments"
-          security: safe  # Basic sanitization
       required: [script_path]
-    cmd: "{{script_path}} {{arguments}}"
+    cmd: "sh {{script_path}} {{arguments}}"

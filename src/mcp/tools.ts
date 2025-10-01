@@ -4,8 +4,6 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ToolDefinition, CommandResult, TemplateContext, PlatformCommands } from '../types/config.js';
 import { renderTemplate, renderSecureTemplate, SecureTemplateContext } from '../templating/mustache.js';
 import { SecurityPolicyManager } from '../security/policies.js';
-import { InputValidator } from '../security/validator.js';
-import { SecuritySanitizer } from '../security/sanitizer.js';
 import { createContextLogger } from '../utils/logger.js';
 
 const logger = createContextLogger('tools');
@@ -117,11 +115,7 @@ export const executeSecureShellCommand = async (
 ): Promise<CommandResult> => {
   try {
     const platformCommand = getPlatformCommand(command);
-
-    // Use secure template rendering
     const renderedCommand = renderSecureTemplate(platformCommand, context, secureContext, inputSchema);
-
-    // Get timeout from security policy if not specified
     const actualTimeout = timeout || secureContext.policyManager.getMaxExecutionTimeout();
 
     const { shell, args } = getShellCommand();
@@ -141,7 +135,6 @@ export const executeSecureShellCommand = async (
       child.stdout?.on('data', (data) => {
         stdout += data.toString();
 
-        // Check for length limits
         if (stdout.length > secureContext.policyManager.getPolicy().maxInputLength) {
           logger.warn('Command output exceeding length limits, truncating');
           child.kill('SIGTERM');
@@ -160,7 +153,6 @@ export const executeSecureShellCommand = async (
           success: (code || 0) === 0
         };
 
-        // Audit logging if enabled
         if (secureContext.policyManager.isAuditLoggingEnabled()) {
           logger.info(`AUDIT: Command executed - Exit Code: ${result.exitCode}, Success: ${result.success}`);
         }
@@ -216,12 +208,9 @@ export const createSecureToolExecutor = (
   definition: ToolDefinition,
   policyManager: SecurityPolicyManager
 ) => {
-  const sanitizer = new SecuritySanitizer(
-    policyManager.getPolicy().allowedCommands,
-    policyManager.isUnsafeAllowed()
-  );
-  const validator = new InputValidator(sanitizer);
-  const secureContext: SecureTemplateContext = { validator, policyManager };
+  const allowedPaths = policyManager.getPolicy().allowedPaths;
+  const escapeMode = definition.escapeMode || policyManager.getDefaultEscapeMode();
+  const secureContext: SecureTemplateContext = { allowedPaths, policyManager, escapeMode };
 
   return async (input: TemplateContext): Promise<CommandResult> => {
     try {
